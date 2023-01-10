@@ -1,7 +1,6 @@
 package log
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -36,7 +35,6 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, want.Value, got.Value)
 	}
 
-	fmt.Println("final write")
 	_, err = s.Append(want)
 	require.Equal(t, io.EOF, err)
 
