@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/shenzhu/proglog/internal/agent"
+	"github.com/shenzhu/proglog/internal/loadbalance"
 
 	"github.com/stretchr/testify/require"
 	"github.com/travisjeffery/go-dynaport"
@@ -35,6 +36,7 @@ func TestAgent(t *testing.T) {
 
 		agent, err := agent.New(agent.Config{
 			NodeName:       fmt.Sprintf("%d", i),
+			Bootstrap:      i == 0,
 			StartJoinAddrs: startJoinAddrs,
 			BindAddr:       bindAddr,
 			RPCPort:        rpcPort,
@@ -66,6 +68,9 @@ func TestAgent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// wait until replication has finished
+	time.Sleep(3 * time.Second)
+
 	consumeResponse, err := leaderClient.Consume(
 		context.Background(),
 		&api.ConsumeRequest{
@@ -74,9 +79,6 @@ func TestAgent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, consumeResponse.Record.Value, []byte("foo"))
-
-	// wait until replication has finished
-	time.Sleep(3 * time.Second)
 
 	followerClient := client(t, agents[1])
 	consumeResponse, err = followerClient.Consume(
@@ -97,7 +99,11 @@ func client(
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
 
-	conn, err := grpc.Dial(rpcAddr, opts...)
+	conn, err := grpc.Dial(fmt.Sprintf(
+		"%s:///%s",
+		loadbalance.Name,
+		rpcAddr,
+	), opts...)
 	require.NoError(t, err)
 
 	client := api.NewLogClient(conn)
